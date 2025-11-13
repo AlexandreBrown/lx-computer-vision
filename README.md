@@ -1,14 +1,12 @@
 <p align="center">
-<img src="./assets/images/dtlogo.png" alt="Duckietown Logo" width="50%">
+<a href="https://duckietown.com"><img src="./assets/images/dtlogo.png" alt="Duckietown Logo" width="50%"></a>
 </p>
 
-# **Learning Experience (LX): Computer Vision **
+# Learning Experience (LX): Computer Vision
 
-
-# Instructions
+Find the most up-to-date instructions on [how to run LXs on the Duckietown manual](https://docs.duckietown.com/ente/duckietown-manual/60-learning-experiences/lx-setup-pid-control.html). 
 
 **NOTE:** All commands below are intended to be executed from the root directory of this exercise (i.e., the directory containing this `README`).
-
 
 ## 1. Make sure your exercise is up-to-date
 
@@ -30,8 +28,6 @@ This exercise is meant to be run with the `ente` version of the shell commands. 
 - 💻 Update your laptop/desktop: `dts desktop update`
 
 - 🚙 Update your Duckiebot: `dts duckiebot update ROBOTNAME` (where `ROBOTNAME` is the name of your (real or virtual - more on this later) Duckiebot chosen during the initialization procedure.)
-
-
 
 ## 3. Work on the exercise
 
@@ -75,10 +71,10 @@ This will build a docker image with your code compiled inside - you should your 
 In order to test your code in the Duckiematrix you will need a virtual robot. You can create one with the command:
 
 ```
-dts duckiebot virtual create [VIRTUAL_ROBOT_NAME]
+dts duckiebot virtual create --type duckiebot --configuration DB21J [VBOT]
 ```
 
-where `[VIRTUAL_ROBOT_NAME]` can be anything you like (but remember it for later).
+where `[VBOT]` is the hostname. It can be anything you like, with [some constraints](https://docs.duckietown.com/ente/duckietown-manual/10-setup/03-duckiebot/flashing-sd-card-duckiebot-initialization-complete.html). Make sure to remember your robot (host)name for later.
 
 Then you can start your virtual robot with the command:
 
@@ -119,7 +115,7 @@ dts code workbench -R [ROBOT_NAME]
 ```
 
 
-In another terminal, you can launch the `noVNC` viewer for this exercise which can be useful to send commands to the robot and view the odometry that you calculating in the RViZ window. 
+In another terminal, you can launch the `noVNC` viewer for this exercise:
 
 ```
 dts code vnc -R [ROBOT_NAME]
@@ -127,7 +123,7 @@ dts code vnc -R [ROBOT_NAME]
 
 where `[ROBOT_NAME]` could be the real or the virtual robot (use whichever you ran the `dts code workbench` and `dts code build` command with).
 
-In the noVNC desktop, click on the icon marked "VLS - Visual Lane Servoing Exercise" and then you should follw the prompts
+In the noVNC desktop, click on the icon marked "VLS - Visual Lane Servoing Exercise" and then you should follow the prompts
 in the terminal where you ran `dts code workbench`.
 
 Now you can proceed to the [first notebook](./notebooks/01-Pinhole-Camera/pinhole_camera_matrix.ipynb).
