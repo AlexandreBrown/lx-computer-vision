@@ -105,7 +105,7 @@ You should see the Unity-based Duckiematrix simulator start up.
 To test your code in the duckiematrix you can do:
 
 ```
-dts code workbench -m -R [VIRTUAL_ROBOT_NAME]
+dts code workbench -m -R [VBOT]
 ```
 
 and to test your code on your real Duckiebot you can do:

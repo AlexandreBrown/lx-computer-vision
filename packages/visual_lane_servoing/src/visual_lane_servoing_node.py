@@ -3,12 +3,18 @@
 import os
 import cv2
 import yaml
+from typing import Union
 import time
 import rospy
 import numpy as np
 
-from duckietown_msgs.msg import Twist2DStamped, EpisodeStart
-from sensor_msgs.msg import CompressedImage
+from dt_computer_vision.camera import CameraModel
+from dt_computer_vision.ground_projection import GroundProjector
+from dt_computer_vision.camera.homography import Homography, HomographyToolkit
+
+from turbojpeg import TurboJPEG
+from duckietown_msgs.msg import Twist2DStamped
+from sensor_msgs.msg import CompressedImage, CameraInfo
 from std_msgs.msg import String
 
 from visual_lane_servoing.include import visual_servoing_solution
@@ -38,29 +44,35 @@ class LaneServoingNode(DTROS):
         # get the name of the robot
         self.veh = rospy.get_namespace().strip("/")
 
-        self.v_0 = 0.3  # Forward velocity command
+        self.v_0 = 0.2  # Forward velocity command
 
         # The following are used for scaling
         self.steer_max = -1
 
-        w, h = 640, 480
-
-        # TODO: you can play with these values to modify the horizontal field-of-view of the agent
-        left = 0.1
-        right = 0.1
-        self._roi = (int(left * w), int(right * w))
 
         self.VLS_ACTION = None
         self.VLS_STOPPED = True
 
         # Defining subscribers:
         rospy.Subscriber(
-            f"/{self.veh}/rectifier_node/image/compressed",
+            f"/{self.veh}/camera_node/image/compressed",
             CompressedImage,
             self.cb_image,
             buff_size=10000000,
             queue_size=1,
         )
+
+        self.sub_camera_info = rospy.Subscriber(
+            f"/{self.veh}/camera_node/camera_info",
+            CameraInfo,
+            self.cb_info,
+            queue_size=1,
+        )
+
+        self.camera_model = None
+        self.mapx = None
+        self.mapy = None
+        self.jpeg = TurboJPEG()
 
         # select the current activity
         rospy.Subscriber(f"/{self.veh}/vls_node/action", String, self.cb_action, queue_size=1)
@@ -82,10 +94,36 @@ class LaneServoingNode(DTROS):
         # Get the steering gain (omega_max) from the calibration file
         # It defines the maximum omega used to scale normalized steering command
         kinematics_calib = self.read_params_from_calibration_file()
-        self.omega_max = kinematics_calib.get("omega_max", 6.0)
+        self.omega_max = kinematics_calib.get("omega_max", 2.0)
+
 
         self.loginfo("Initialized!")
 
+    def cb_info(self, msg):
+        self.loginfo("Camera info message received. Unsubscribing from camera_info topic.")
+        try:
+            self.sub_camera_info.shutdown()
+        except BaseException:
+            pass
+        H, W = msg.height, msg.width
+        # create new camera info
+        self.camera_model = CameraModel(
+            width=W,
+            height=H,
+            K=np.reshape(msg.K, (3, 3)),
+            D=np.reshape(msg.D, (5,)),
+            P=np.reshape(msg.P, (3, 4)),
+        )
+        homography = self.load_extrinsics()
+        self.camera_model.H = homography
+        self.projector = GroundProjector(self.camera_model)
+
+        rect_camera_K, _ = cv2.getOptimalNewCameraMatrix(
+            self.camera_model.K, self.camera_model.D, (W, H), alpha=0.0
+        )
+        self.mapx, self.mapy = cv2.initUndistortRectifyMap(
+            self.camera_model.K, self.camera_model.D, None, rect_camera_K, (W, H), cv2.CV_32FC1
+        )
 
     def cb_action(self, msg):
         """
@@ -137,15 +175,20 @@ class LaneServoingNode(DTROS):
             image_msg (:obj:`sensor_msgs.msg.CompressedImage`): The received image message
 
         """
-        image = compressed_imgmsg_to_rgb(image_msg)
+
+        # make sure we have a map to use
+        if self.mapx is None or self.mapy is None:
+            self.loginfo("Waiting for Camera Info")
+            return
+
+        dist_img = self.jpeg.decode(image_msg.data)
+        image = cv2.remap(dist_img, self.mapx, self.mapy, cv2.INTER_NEAREST)
         # Resize the image to the desired dimensionsS
         height_original, width_original = image.shape[0:2]
         img_size = image.shape[0:2]
         if img_size[0] != width_original or img_size[1] != height_original:
             image = cv2.resize(image, tuple(reversed(img_size)), interpolation=cv2.INTER_NEAREST)
 
-        (left, right) = self._roi
-        image = image[:, left:-right, :]
 
         if self.is_shutdown:
             self.publish_command([0, 0])
@@ -158,7 +201,7 @@ class LaneServoingNode(DTROS):
 
         # Call the user-defined function to get the masks for the left
         # and right lane markings
-        (lt_mask, rt_mask) = visual_servoing_solution.detect_lane_markings(image)
+        (lt_mask, rt_mask) = visual_servoing_solution.detect_lane_markings(image, self.projector)
 
         # Publish these out for visualization
         lt_mask_viz = cv2.addWeighted(
@@ -270,6 +313,42 @@ class LaneServoingNode(DTROS):
             return readFile(fname)
         else:
             return readFile(fname)
+
+    def load_extrinsics(self) -> Union[Homography, None]:
+        """
+        Loads the homography matrix from the extrinsic calibration file.
+
+        Returns:
+            :obj:`Homography`: the loaded homography matrix
+
+        """
+        # load extrinsic calibration
+        cali_file_folder = "/data/config/calibrations/camera_extrinsic/"
+        cali_file = cali_file_folder + rospy.get_namespace().strip("/") + ".yaml"
+
+        # Locate calibration yaml file or use the default otherwise
+        if not os.path.isfile(cali_file):
+            self.log(
+                f"Can't find calibration file: {cali_file}\n Using default calibration instead.",
+                "warn",
+            )
+            cali_file = os.path.join(cali_file_folder, "default.yaml")
+
+        # Shutdown if no calibration file not found
+        if not os.path.isfile(cali_file):
+            msg = "Found no calibration file ... aborting"
+            self.logerr(msg)
+            rospy.signal_shutdown(msg)
+
+        try:
+            self.H: Homography = HomographyToolkit.load_from_disk(
+                cali_file, return_date=False
+            )  # type: ignore
+            return self.H.reshape((3, 3))
+        except Exception as e:
+            msg = f"Error in parsing calibration file {cali_file}:\n{e}"
+            self.logerr(msg)
+            rospy.signal_shutdown(msg)
 
     def on_shutdown(self):
         self.loginfo("Stopping motors...")
