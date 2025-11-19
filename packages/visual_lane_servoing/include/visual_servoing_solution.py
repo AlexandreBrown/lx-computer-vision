@@ -75,10 +75,10 @@ def detect_lane_markings(image: np.ndarray, projector: GroundProjector) -> Tuple
 
     sigma = 8  # CHANGE ME - Gaussian blur sigma
     threshold = 10  # CHANGE ME - minimum threshold for gradiant magnitude
-    white_lower_hsv = np.array([0, 0, 150])  # CHANGE ME - color thresholds
-    white_upper_hsv = np.array([179, 120, 255])  # CHANGE ME
-    yellow_lower_hsv = np.array([20, 80, 60])  # CHANGE ME
-    yellow_upper_hsv = np.array([50, 255, 255])  # CHANGE ME
+    white_lower_hsv = np.array([0, 0, 0])  # CHANGE ME - color thresholds
+    white_upper_hsv = np.array([179, 255, 255])  # CHANGE ME
+    yellow_lower_hsv = np.array([0, 0, 0])  # CHANGE ME
+    yellow_upper_hsv = np.array([179, 255, 255])  # CHANGE ME
 
     h, w, _ = image.shape
 
