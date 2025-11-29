@@ -30,7 +30,7 @@ def get_steer_matrix_left_lane_markings(shape: Tuple[int, int]) -> np.ndarray:
     if max_val != 0:
         steer_unit /= max_val
 
-    steer_matrix_left_lane[:, :width] = 1 # CHANGE ME
+    steer_matrix_left_lane[:, :width] = -1.0 * steer_unit # CHANGE ME
 
     return steer_matrix_left_lane
 
@@ -59,10 +59,12 @@ def get_steer_matrix_right_lane_markings(shape: Tuple[int, int]) -> np.ndarray:
     if max_val != 0:
         steer_unit /= max_val
 
-    steer_matrix_right_lane[:, width:] = 1 # CHANGE ME
+    steer_matrix_right_lane[:, width:] = 1.0 * steer_unit # CHANGE ME
 
     return steer_matrix_right_lane
 
+def scale_value(value, min, max, new_min, new_max):
+    return int(new_min + ((value - min) / (max - min)) * (new_max - new_min))
 
 def detect_lane_markings(image: np.ndarray, projector: GroundProjector) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -73,12 +75,13 @@ def detect_lane_markings(image: np.ndarray, projector: GroundProjector) -> Tuple
         right_masked_img:  Masked image for the solid-white line (numpy.ndarray)
     """
 
-    sigma = 8  # CHANGE ME - Gaussian blur sigma
-    threshold = 10  # CHANGE ME - minimum threshold for gradiant magnitude
-    white_lower_hsv = np.array([0, 0, 0])  # CHANGE ME - color thresholds
-    white_upper_hsv = np.array([179, 255, 255])  # CHANGE ME
-    yellow_lower_hsv = np.array([0, 0, 0])  # CHANGE ME
-    yellow_upper_hsv = np.array([179, 255, 255])  # CHANGE ME
+    sigma = 7  # CHANGE ME - Gaussian blur sigma
+    threshold = 32  # CHANGE ME - minimum threshold for gradiant magnitude
+
+    white_lower_hsv = np.array([scale_value(10, min=0, max=255, new_min=0, new_max=179), scale_value(0, min=0, max=100, new_min=0, new_max=255), scale_value(40, min=0, max=100, new_min=0, new_max=255)])         # CHANGE ME
+    white_upper_hsv = np.array([scale_value(255, min=0, max=255, new_min=0, new_max=179), scale_value(17, min=0, max=100, new_min=0, new_max=255), scale_value(100, min=0, max=100, new_min=0, new_max=255)])   # CHANGE ME
+    yellow_lower_hsv = np.array([scale_value(30, min=0, max=255, new_min=0, new_max=179), scale_value(45, min=0, max=100, new_min=0, new_max=255), scale_value(55, min=0, max=100, new_min=0, new_max=255)])        # CHANGE ME
+    yellow_upper_hsv = np.array([scale_value(60, min=0, max=255, new_min=0, new_max=179), scale_value(100, min=0, max=100, new_min=0, new_max=255), scale_value(100, min=0, max=100, new_min=0, new_max=255)])   # CHANGE ME
 
     h, w, _ = image.shape
 
