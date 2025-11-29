@@ -59,7 +59,7 @@ def get_steer_matrix_right_lane_markings(shape: Tuple[int, int]) -> np.ndarray:
     if max_val != 0:
         steer_unit /= max_val
 
-    steer_matrix_right_lane[:, width:] = 1.0 * steer_unit # CHANGE ME
+    steer_matrix_right_lane[:, width:] = 5.0 * steer_unit # CHANGE ME
 
     return steer_matrix_right_lane
 
